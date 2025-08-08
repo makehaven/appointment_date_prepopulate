@@ -1,0 +1,57 @@
+<?php
+
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\node\Entity\Node;
+
+/**
+ * Implements hook_form_alter() to prepopulate the appointment date field.
+ */
+function appointment_date_prepopulate_form_alter(array &$form, FormStateInterface $form_state, $form_id) {
+  // Only proceed if the form ID matches 'node_appointment_form'
+  if ($form_id === 'node_appointment_form') {
+    \Drupal::logger('appointment_date_prepopulate')->info('Form ID matched: node_appointment_form');
+
+    // Get the URL parameters.
+    $query = \Drupal::request()->query;
+
+    if ($query->has('date')) {
+      // Retrieve the date parameter.
+      $date_value = $query->get('date');
+      \Drupal::logger('appointment_date_prepopulate')->info('Date parameter found: @date', ['@date' => $date_value]);
+
+      // Ensure the date is in the correct format (YYYY-MM-DD).
+      $formatted_date = date('Y-m-d', strtotime($date_value));
+      
+      // Set the value directly in the form field.
+      if (isset($form['field_appointment_date']['widget'][0]['value'])) {
+        $form['field_appointment_date']['widget'][0]['value']['#default_value'] = $formatted_date;
+        \Drupal::logger('appointment_date_prepopulate')->info('Date field default value set to @date', ['@date' => $formatted_date]);
+      } else {
+        \Drupal::logger('appointment_date_prepopulate')->warning('Date value field not found in form.');
+      }
+    } else {
+      \Drupal::logger('appointment_date_prepopulate')->warning('Date parameter not found in URL.');
+    }
+  }
+}
+
+/**
+ * Implements hook_node_presave().
+ */
+function appointment_date_prepopulate_node_presave(Node $node) {
+  if ($node->getType() == 'appointment') {
+    // Get the URL parameters.
+    $query = \Drupal::request()->query;
+
+    if ($query->has('date')) {
+      $date_value = $query->get('date');
+      
+      // Ensure the date is in the correct format (YYYY-MM-DD).
+      $formatted_date = date('Y-m-d', strtotime($date_value));
+      
+      // Set the field value.
+      $node->set('field_appointment_date', $formatted_date);
+      \Drupal::logger('appointment_date_prepopulate')->info('Date set directly in node: @date', ['@date' => $formatted_date]);
+    }
+  }
+}

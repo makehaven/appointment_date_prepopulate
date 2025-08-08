@@ -1,0 +1,6 @@
+{
+    "name": "makehaven/appointment_date_prepopulate",
+    "type": "drupal-custom-module",
+    "description": "Prepopulates the appointment date field based on the URL.",
+    "license": "GPL-2.0-or-later"
+}
