@@ -19,8 +19,12 @@ function appointment_date_prepopulate_form_alter(array &$form, FormStateInterfac
       $date_value = $query->get('date');
       \Drupal::logger('appointment_date_prepopulate')->info('Date parameter found: @date', ['@date' => $date_value]);
 
-      // Ensure the date is in the correct format (YYYY-MM-DD).
-      $formatted_date = date('Y-m-d', strtotime($date_value));
+      // Normalize in site timezone to avoid timezone-shifted dates.
+      $formatted_date = _appointment_date_prepopulate_normalize_date((string) $date_value);
+      if ($formatted_date === NULL) {
+        \Drupal::logger('appointment_date_prepopulate')->warning('Unable to normalize date parameter: @date', ['@date' => $date_value]);
+        return;
+      }
       
       // Set the value directly in the form field.
       if (isset($form['field_appointment_date']['widget'][0]['value'])) {
@@ -45,13 +49,43 @@ function appointment_date_prepopulate_node_presave(Node $node) {
 
     if ($query->has('date')) {
       $date_value = $query->get('date');
-      
-      // Ensure the date is in the correct format (YYYY-MM-DD).
-      $formatted_date = date('Y-m-d', strtotime($date_value));
+      $formatted_date = _appointment_date_prepopulate_normalize_date((string) $date_value);
+      if ($formatted_date === NULL) {
+        \Drupal::logger('appointment_date_prepopulate')->warning('Unable to normalize date parameter during presave: @date', ['@date' => $date_value]);
+        return;
+      }
       
       // Set the field value.
       $node->set('field_appointment_date', $formatted_date);
       \Drupal::logger('appointment_date_prepopulate')->info('Date set directly in node: @date', ['@date' => $formatted_date]);
     }
   }
+}
+
+/**
+ * Normalizes incoming date strings to Y-m-d using the site timezone.
+ */
+function _appointment_date_prepopulate_normalize_date(string $value): ?string {
+  $value = trim($value);
+  if ($value === '') {
+    return NULL;
+  }
+
+  $timezone_name = \Drupal::config('system.date')->get('timezone.default') ?: date_default_timezone_get();
+  $timezone = new \DateTimeZone($timezone_name);
+
+  try {
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+      $date = new \DateTimeImmutable($value . ' 00:00:00', $timezone);
+    }
+    else {
+      $date = new \DateTimeImmutable($value);
+      $date = $date->setTimezone($timezone);
+    }
+  }
+  catch (\Exception $e) {
+    return NULL;
+  }
+
+  return $date->format('Y-m-d');
 }
